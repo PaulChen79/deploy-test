@@ -1,0 +1,10 @@
+tmp/
+log/
+config/config.yml
+dump.rdb
+
+/.idea
+/.vscode
+
+test/
+region.json

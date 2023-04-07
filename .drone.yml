@@ -1,0 +1,63 @@
+---
+kind: pipeline
+type: docker
+name: depoly
+
+volumes:
+  - name: gopath
+    host:
+      path: /home/ubuntu/droneCache/gopath
+
+steps:
+- name: migrate_and_build
+  image: golang:1.17.1
+  volumes:
+  - name: gopath
+    path: /go
+  commands:
+    - cp config/config.dev.yml config/config.yml
+    - go run cmd/migrate/gorm/migration/main.go
+    - go run cmd/migrate/gorm/seed/main.go
+    - go get github.com/swaggo/swag@v1.8.4
+    - swag init -g internal/gin/route/route.go --md . --pd
+    - go build cmd/gin/main.go
+    - go build -o main_doc_api cmd/swagger/main.go
+    - cd ../
+    - tar zcf Usdao_Admin.tgz src
+    - echo "tar success"
+    - mv Usdao_Admin.tgz src/Usdao_Admin.tgz
+
+- name: scp_file
+  image: appleboy/drone-scp:1.6.2
+  settings:
+    host:
+      - 13.228.67.38
+    username: centos
+    key:
+      from_secret: ssh_key
+    port: 22
+    target: build_code
+    source:
+      - Usdao_Admin.tgz
+
+- name: depoly
+  image: appleboy/drone-ssh:1.6.2
+  settings:
+    host:
+      - 13.228.67.38
+    username: centos
+    key:
+      from_secret: ssh_key
+    port: 22
+    script:
+      - if [ ! -d ~/build_code/Usdao_Admin ]; then mkdir ~/build_code/Usdao_Admin; fi
+      - . auto_delete.sh Usdao_Admin
+      - . depoly.sh Usdao_Admin Usdao_Admin
+
+trigger:
+  branch:
+    - develop
+  event:
+    - push
+
+
